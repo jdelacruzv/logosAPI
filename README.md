@@ -59,7 +59,7 @@ uvicorn main:app --reload
 | :--- | :--- | :--- |
 | `GET` | `/read/{version}/{book}/{chapter}` | Obtiene un capítulo completo de una versión específica. |
 | `GET` | `/read/{version}/{book}/{chapter}/{verse}` | Obtiene un solo versículo específico. |
-| `GET` | `/search?q={query}` | Busca palabras o frases en todas las versiones de la Biblia. |
+| `GET` | `/search/{version}?q={query}` | Busca palabras o frases dentro de una versión específica. |
 | `GET` | `/compare/{book}/{chapter}/{verse}` | Compara un mismo versículo en todas las biblias disponibles. |
 | `GET` | `/info/versions` | Lista todas las versiones y códigos de biblias disponibles (24 versiones). |
 | `GET` | `/info/structure/{version}/{book}` | Devuelve la cantidad de capítulos y versículos de un libro específico. |

@@ -1,5 +1,5 @@
 from fastapi import FastAPI, HTTPException
-from database import get_db_connection, get_book_id
+from database import get_db_connection, get_book_id, search_in_version, get_allowed_versions
 from models import BookStructureResponse, BookSuggestion, ComparisonResponse, Verse, VersionInfo, ChapterResponse
 from typing import List, Optional
 from enum import Enum
@@ -242,3 +242,30 @@ async def suggest_books(q: str):
             status_code=500, detail=f"Error en sugerencias: {str(e)}")
     finally:
         conn.close()
+
+
+# 7. Endpoint para buscar una palabra o frase en una versión específica
+@app.get("/search/{version}", tags=["Search"])
+async def search(version: str, q: str):
+	# Validamos que la versión exista en tu lista de tablas para evitar errores
+    allowed_versions = get_allowed_versions()
+    if version not in allowed_versions:
+        return {
+            "error": "Versión no válida",
+            "mensaje": f"La versión '{version}' no existe. Intenta con una de estas: {', '.join(allowed_versions[:5])}..."
+        }
+
+    if len(q) < 3:
+        return {"error": "La búsqueda debe tener al menos 3 caracteres"}
+
+    results = search_in_version(version, q)
+
+    if not results:
+        return {"message": "No se encontraron resultados", "results": []}
+
+    return {
+        "version": version,
+        "query": q,
+        "total": len(results),
+        "results": results
+    }
