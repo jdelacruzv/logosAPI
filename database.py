@@ -20,6 +20,18 @@ def get_book_id(book_name: str):
     return result['book_id'] if result else None
 
 
+def get_books_by_version(version: str):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        # Obtenemos los nombres únicos de los libros en orden de aparición
+        cursor.execute(f"SELECT DISTINCT book FROM {version} ORDER BY id ASC")
+        books = [row['book'] for row in cursor.fetchall()]
+        return books
+    finally:
+        conn.close()
+
+
 def get_allowed_versions():
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -29,7 +41,7 @@ def get_allowed_versions():
     tables = [row['name'] for row in cursor.fetchall()]
     conn.close()
     return tables
-
+	
 
 def search_in_version(version: str, query: str):
     conn = get_db_connection()

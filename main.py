@@ -1,5 +1,6 @@
 from fastapi import FastAPI, HTTPException
-from database import get_db_connection, get_book_id, search_in_version, get_allowed_versions
+from contextlib import asynccontextmanager
+from database import get_books_by_version, get_db_connection, get_book_id, search_in_version, get_allowed_versions
 from models import BookStructureResponse, BookSuggestion, ComparisonResponse, Verse, VersionInfo, ChapterResponse
 from typing import List, Optional
 from enum import Enum
@@ -8,15 +9,38 @@ from enum import Enum
 class LanguageEnum(str, Enum):
     spanish = "Spanish"
     english = "English"
-    portuguese = "Portuguese"
-    latin = "Latin"
+
+
+# Lista global que se llenará al arrancar
+VALID_VERSIONS = []
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Lógica de arranque (Startup)
+    global VALID_VERSIONS
+    VALID_VERSIONS = get_allowed_versions()
+    print(f"🚀 LogosAPI (Lifespan) cargada con versiones: {VALID_VERSIONS}")
+    yield  # Aquí es donde la app "vive" y atiende peticiones
+    # # Lógica de cierre (Shutdown) si fuera necesaria
+    print("🧹 Apagando LogosAPI...")
 
 
 app = FastAPI(
     title="LogosAPI",
     description="Acceso a 24 versiones de la Biblia en múltiples idiomas",
-    version="1.0.0"
+    version="1.0.0",
+    lifespan=lifespan
 )
+
+
+# 0. Función para obtener conexión a la base de datos (reutilizada en varios endpoints)
+@app.on_event("startup")
+async def startup_event():
+    global VALID_VERSIONS
+    # Reutilizamos tu función existente
+    VALID_VERSIONS = get_allowed_versions()
+    print(f"🚀 LogosAPI cargada con versiones: {VALID_VERSIONS}")
 
 
 # 1. Endpoint para comparar un versículo entre todas las versiones
@@ -271,6 +295,7 @@ async def search(version: str, q: str):
     }
 
 
+# 8. Endpoint raíz para verificar que la API está funcionando
 @app.get("/", tags=["Root"])
 async def home():
     return {
@@ -278,4 +303,24 @@ async def home():
         "version": "1.0.0",
         "docs": "/docs",
         "author": "jdelacruzv"
+    }
+
+
+# 9. Endpoint para listar los libros disponibles en una versión específica
+@app.get("/info/{version}/books", tags=["Version information"])
+async def read_books(version: str):
+    v_lower = version.lower()
+
+    # Validación dinámica
+    if v_lower not in VALID_VERSIONS:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Versión '{version}' no disponible. Opciones: {VALID_VERSIONS}"
+        )
+
+    books = get_books_by_version(v_lower)
+    return {
+        "version": v_lower,
+        "total_books": len(books),
+        "books": books
     }
