@@ -269,3 +269,13 @@ async def search(version: str, q: str):
         "total": len(results),
         "results": results
     }
+
+
+@app.get("/", tags=["Root"])
+async def home():
+    return {
+        "message": "Bienvenido a LogosAPI",
+        "version": "1.0.0",
+        "docs": "/docs",
+        "author": "jdelacruzv"
+    }
