@@ -1,4 +1,5 @@
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from database import get_books_by_version, get_db_connection, get_book_id, search_in_version, get_allowed_versions
 from models import BookStructureResponse, BookSuggestion, ComparisonResponse, Verse, VersionInfo, ChapterResponse
@@ -31,6 +32,15 @@ app = FastAPI(
     description="Acceso a 24 versiones de la Biblia en múltiples idiomas",
     version="1.0.0",
     lifespan=lifespan
+)
+
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Permite cualquier origen (incluyendo tu localhost)
+    allow_credentials=True,
+    allow_methods=["*"],  # Permite todos los métodos (GET, POST, etc.)
+    allow_headers=["*"],  # Permite todos los headers
 )
 
 
