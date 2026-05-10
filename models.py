@@ -52,3 +52,9 @@ class BookSuggestion(BaseModel):
     book_id: int
     name: str
     language: str
+
+
+class BookLookupResponse(BaseModel):
+    query: str
+    name_api: str
+    found: bool

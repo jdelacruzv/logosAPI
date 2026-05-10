@@ -16,6 +16,7 @@ class LanguageEnum(str, Enum):
 VALID_VERSIONS = []
 
 
+# Obtener conexión a la base de datos (reutilizada en varios endpoints)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Lógica de arranque (Startup)
@@ -44,16 +45,18 @@ app.add_middleware(
 )
 
 
-# 0. Función para obtener conexión a la base de datos (reutilizada en varios endpoints)
-@app.on_event("startup")
-async def startup_event():
-    global VALID_VERSIONS
-    # Reutilizamos tu función existente
-    VALID_VERSIONS = get_allowed_versions()
-    print(f"🚀 LogosAPI cargada con versiones: {VALID_VERSIONS}")
+# Endpoint raíz para verificar que la API está funcionando
+@app.get("/", tags=["Root"])
+async def home():
+    return {
+        "message": "Bienvenido a LogosAPI",
+        "version": "1.0.0",
+        "docs": "/docs",
+        "author": "jdelacruzv"
+    }
 
 
-# 1. Endpoint para comparar un versículo entre todas las versiones
+# Endpoint para comparar un versículo entre todas las versiones
 @app.get("/compare/{book_name}/{chapter}/{verse}", response_model=ComparisonResponse, tags=["Verse comparison"])
 async def compare_verse(book_name: str, chapter: int, verse: int):
     book_id = get_book_id(book_name)
@@ -105,7 +108,7 @@ async def compare_verse(book_name: str, chapter: int, verse: int):
         conn.close()
 
 
-# 2. Endpoint para ver qué versiones hay disponibles
+# Endpoint para ver qué versiones hay disponibles
 @app.get("/info/versions", response_model=List[VersionInfo], tags=["Version information"])
 async def get_versions(lang: Optional[LanguageEnum] = None):
     conn = get_db_connection()
@@ -131,73 +134,7 @@ async def get_versions(lang: Optional[LanguageEnum] = None):
         conn.close()
 
 
-# 3. Endpoint para obtener un versículo específico
-@app.get("/read/{version}/{book_name}/{chapter}/{verse}", response_model=Verse, tags=["Reading verse"])
-async def get_specific_verse(version: str, book_name: str, chapter: int, verse: int):
-    # 1. Obtener el book_id del libro (ej: "Juan" -> 43)
-    book_id = get_book_id(book_name)
-    if not book_id:
-        raise HTTPException(status_code=404, detail="Libro no reconocido")
-
-    conn = get_db_connection()
-    cursor = conn.cursor()
-
-    # 2. Buscamos en la tabla de la biblia usando el book_id en lugar del nombre del libro
-    query = f"SELECT book, chapter, verse, text FROM {version.lower()} WHERE book_id = ? AND chapter = ? AND verse = ?"
-    cursor.execute(query, (book_id, chapter, verse))
-    result = cursor.fetchone()
-    conn.close()
-
-    if result:
-        return dict(result)
-    raise HTTPException(status_code=404, detail="Versículo no encontrado")
-
-
-# 4. Endpoint para obtener un capítulo completo
-@app.get("/read/{version}/{book_name}/{chapter}", response_model=ChapterResponse, tags=["Reading verse"])
-async def get_full_chapter(version: str, book_name: str, chapter: int):
-    # 1. Traducir nombre a ID
-    book_id = get_book_id(book_name)
-    if not book_id:
-        raise HTTPException(status_code=404, detail="Libro no reconocido")
-
-    conn = get_db_connection()
-    cursor = conn.cursor()
-
-    try:
-        # 2. Consultar todos los versículos del capítulo ordenados
-        query = f"""
-            SELECT book, chapter, verse, text 
-            FROM {version.lower()} 
-            WHERE book_id = ? AND chapter = ? 
-            ORDER BY verse ASC
-        """
-        cursor.execute(query, (book_id, chapter))
-        rows = cursor.fetchall()
-
-        if not rows:
-            raise HTTPException(
-                status_code=404, detail="Capítulo no encontrado")
-
-        # 3. Formatear la respuesta
-        verses_list = [dict(row) for row in rows]
-
-        return {
-            "version": version,
-            "book": book_name,
-            "chapter": chapter,
-            "total_verses": len(verses_list),
-            "verses": verses_list
-        }
-
-    except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Error al leer el capítulo: {str(e)}")
-    finally:
-        conn.close()
-
-
-# 5. Endpoint para obtener la estructura de un libro (cuántos capítulos y versículos tiene cada capítulo)
+# Endpoint para obtener la estructura de un libro (cuántos capítulos y versículos tiene cada capítulo)
 @app.get("/info/structure/{version}/{book_name}", response_model=BookStructureResponse, tags=["Version information"])
 async def get_book_structure(version: str, book_name: str):
     # 1. Traducir nombre a ID
@@ -242,12 +179,98 @@ async def get_book_structure(version: str, book_name: str):
         conn.close()
 
 
-# 6. Endpoint para sugerir libros basados en una búsqueda parcial
-@app.get("/info/books/suggest", response_model=List[BookSuggestion], tags=["Suggestions/Autocomplete"])
+# Endpoint para listar los libros disponibles en una versión específica
+@app.get("/info/{version}/books", tags=["Version information"])
+async def read_books(version: str):
+    v_lower = version.lower()
+
+    # Validación dinámica
+    if v_lower not in VALID_VERSIONS:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Versión '{version}' no disponible. Opciones: {VALID_VERSIONS}"
+        )
+
+    books = get_books_by_version(v_lower)
+    return {
+        "version": v_lower,
+        "total_books": len(books),
+        "books": books
+    }
+
+
+# Endpoint para obtener un capítulo completo
+@app.get("/read/{version}/{book_name}/{chapter}", response_model=ChapterResponse, tags=["Reading verse"])
+async def get_full_chapter(version: str, book_name: str, chapter: int):
+    # 1. Traducir nombre a ID
+    book_id = get_book_id(book_name)
+    if not book_id:
+        raise HTTPException(status_code=404, detail="Libro no reconocido")
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    try:
+        # 2. Consultar todos los versículos del capítulo ordenados
+        query = f"""
+            SELECT book, chapter, verse, text 
+            FROM {version.lower()} 
+            WHERE book_id = ? AND chapter = ? 
+            ORDER BY verse ASC
+        """
+        cursor.execute(query, (book_id, chapter))
+        rows = cursor.fetchall()
+
+        if not rows:
+            raise HTTPException(
+                status_code=404, detail="Capítulo no encontrado")
+
+        # 3. Formatear la respuesta
+        verses_list = [dict(row) for row in rows]
+
+        return {
+            "version": version,
+            "book": book_name,
+            "chapter": chapter,
+            "total_verses": len(verses_list),
+            "verses": verses_list
+        }
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Error al leer el capítulo: {str(e)}")
+    finally:
+        conn.close()
+
+
+# Endpoint para obtener un versículo específico
+@app.get("/read/{version}/{book_name}/{chapter}/{verse}", response_model=Verse, tags=["Reading verse"])
+async def get_specific_verse(version: str, book_name: str, chapter: int, verse: int):
+    # 1. Obtener el book_id del libro (ej: "Juan" -> 43)
+    book_id = get_book_id(book_name)
+    if not book_id:
+        raise HTTPException(status_code=404, detail="Libro no reconocido")
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    # 2. Buscamos en la tabla de la biblia usando el book_id en lugar del nombre del libro
+    query = f"SELECT book, chapter, verse, text FROM {version.lower()} WHERE book_id = ? AND chapter = ? AND verse = ?"
+    cursor.execute(query, (book_id, chapter, verse))
+    result = cursor.fetchone()
+    conn.close()
+
+    if result:
+        return dict(result)
+    raise HTTPException(status_code=404, detail="Versículo no encontrado")
+
+
+# Endpoint para sugerir libros basados en una búsqueda parcial
+@app.get("/search/books/suggest", response_model=List[BookSuggestion], tags=["Search"])
 async def suggest_books(q: str):
     """
     Sugiere nombres de libros basados en una búsqueda parcial (mínimo 1 letra).
-    Ejemplo: /info/books/suggest?q=Gen -> ["Génesis", "Genesis"]
+    Ejemplo: /search/books/suggest?q=g -> ["Gálatas", "Galatians", "Génesis", "Genesis"]
     """
     if len(q) < 1:
         return []
@@ -278,9 +301,60 @@ async def suggest_books(q: str):
         conn.close()
 
 
-# 7. Endpoint para buscar una palabra o frase en una versión específica
+# Endpoint para normalizar el nombre de un libro consultando la tabla book_names
+@app.get("/search/books/normalize", tags=["Search"])
+async def normalize_book_name(q: str):
+    """
+    Busca el nombre oficial de un libro en la tabla book_names.
+    Sirve para convertir "genesis" o "GENESIS" en "Génesis" (con tilde y mayúscula).
+    """
+    if not q:
+        raise HTTPException(
+            status_code=400, detail="Debe proporcionar un nombre de libro")
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    try:
+        # Buscamos el nombre exacto ignorando mayúsculas/minúsculas.
+        # name_api es la columna que contiene el nombre con el formato que requiere la API externa.
+        query = """
+            SELECT name as name_api
+            FROM book_names 
+            WHERE LOWER(name) = ? 
+            LIMIT 1
+        """
+        cursor.execute(query, (q.lower(),))
+        result = cursor.fetchone()
+
+        if result:
+            return {
+                "query": q,
+                "name_api": result['name_api'],
+                "found": True
+            }
+
+        # Si no se encuentra en la DB, devolvemos el mismo query como fallback
+        return {
+            "query": q,
+            "name_api": q,
+            "found": False
+        }
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Error al consultar nombres de libros: {str(e)}")
+    finally:
+        conn.close()
+
+
+# Endpoint para buscar una palabra o frase exacta en una versión específica
 @app.get("/search/{version}", tags=["Search"])
 async def search(version: str, q: str):
+    """
+	Busca una palabra o frase exacta en una versión específica.
+	Ejemplo: /search/NVI?q=amor -> ["amor", "Amor", "AMOR"] de la versión NVI.
+    """
 	# Validamos que la versión exista en tu lista de tablas para evitar errores
     allowed_versions = get_allowed_versions()
     if version not in allowed_versions:
@@ -302,35 +376,4 @@ async def search(version: str, q: str):
         "query": q,
         "total": len(results),
         "results": results
-    }
-
-
-# 8. Endpoint raíz para verificar que la API está funcionando
-@app.get("/", tags=["Root"])
-async def home():
-    return {
-        "message": "Bienvenido a LogosAPI",
-        "version": "1.0.0",
-        "docs": "/docs",
-        "author": "jdelacruzv"
-    }
-
-
-# 9. Endpoint para listar los libros disponibles en una versión específica
-@app.get("/info/{version}/books", tags=["Version information"])
-async def read_books(version: str):
-    v_lower = version.lower()
-
-    # Validación dinámica
-    if v_lower not in VALID_VERSIONS:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Versión '{version}' no disponible. Opciones: {VALID_VERSIONS}"
-        )
-
-    books = get_books_by_version(v_lower)
-    return {
-        "version": v_lower,
-        "total_books": len(books),
-        "books": books
     }
