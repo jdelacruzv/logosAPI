@@ -1,3 +1,9 @@
+import sys
+import os
+
+# Agrega la raíz del proyecto al sys.path para que encuentre database.py y models.py
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
@@ -19,7 +25,7 @@ VALID_VERSIONS = []
 # Obtener conexión a la base de datos (reutilizada en varios endpoints)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Lógica de arranque (Startup)
+	# Lógica de arranque (Startup)
     global VALID_VERSIONS
     VALID_VERSIONS = get_allowed_versions()
     print(f"🚀 LogosAPI (Lifespan) cargada con versiones: {VALID_VERSIONS}")
@@ -352,8 +358,8 @@ async def normalize_book_name(q: str):
 @app.get("/search/{version}", tags=["Search"])
 async def search(version: str, q: str):
     """
-	Busca una palabra o frase exacta en una versión específica.
-	Ejemplo: /search/NVI?q=amor -> ["amor", "Amor", "AMOR"] de la versión NVI.
+		Busca una palabra o frase exacta en una versión específica.
+		Ejemplo: /search/NVI?q=amor -> ["amor", "Amor", "AMOR"] de la versión NVI.
     """
 	# Validamos que la versión exista en tu lista de tablas para evitar errores
     allowed_versions = get_allowed_versions()
