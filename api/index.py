@@ -74,14 +74,14 @@ async def compare_verse(book_name: str, chapter: int, verse: int):
 
         comparison_list = []
 
-        # 2. Iterar sobre cada versión y buscar el versículo
+        # 2. Iterar sobre cada versión y buscar el versículo usando book_id
         for v in versions:
             table = v['table_name']
             name = v['full_name']
 
-            # Buscamos el texto en la tabla correspondiente
-            query = f"SELECT text FROM {table} WHERE book = ? AND chapter = ? AND verse = ?"
-            cursor.execute(query, (book_name, chapter, verse))
+            # Buscamos por book_id en lugar del nombre en texto
+            query = f"SELECT text FROM {table} WHERE book_id = ? AND chapter = ? AND verse = ?"
+            cursor.execute(query, (book_id, chapter, verse))
             result = cursor.fetchone()
 
             if result:
@@ -91,22 +91,23 @@ async def compare_verse(book_name: str, chapter: int, verse: int):
                     "text": result['text']
                 })
 
-        if not comparison_list:
-            raise HTTPException(
-                status_code=404, detail="Versículo no encontrado en ninguna versión")
-
-        return {
-            "book": book_name,
-            "chapter": chapter,
-            "verse": verse,
-            "comparisons": comparison_list
-        }
-
     except Exception as e:
         raise HTTPException(
-            status_code=500, detail=f"Error en la comparación: {str(e)}")
+            status_code=500, detail=f"Error en la base de datos: {str(e)}")
     finally:
         conn.close()
+
+    # 3. La validación 404 se hace FUERA del bloque try/except para no distorsionar el código HTTP
+    if not comparison_list:
+        raise HTTPException(
+            status_code=404, detail="Versículo no encontrado en ninguna versión")
+
+    return {
+        "book": book_name,
+        "chapter": chapter,
+        "verse": verse,
+        "comparisons": comparison_list
+    }
 
 
 # Endpoint para ver qué versiones hay disponibles

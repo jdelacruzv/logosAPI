@@ -20,7 +20,7 @@
 *   **Base de Datos:** SQLite (con optimización VACUUM)
 *   **Gestión de Archivos:** Git LFS (Large File Storage)
 *   **Servidor ASGI:** Uvicorn
-*   **Despliegue:** Render
+*   **Despliegue:** Vercel
 
 ## 🚀 Instalación y Uso Local
 
@@ -47,7 +47,7 @@ source venv/bin/activate
 pip install -r requirements.txt
 
 # 5. Ejecutar la API
-uvicorn main:app --reload
+uvicorn api.index:app --reload
 ```
 
 - **API local:** http://127.0.0.1:8000
@@ -57,16 +57,19 @@ uvicorn main:app --reload
 
 | Método | Ruta | Descripción |
 | :--- | :--- | :--- |
+| `GET` | `/` | Verifica el estado de la API y devuelve información básica del servicio. |
+| `GET` | `/compare/{book}/{chapter}/{verse}` | Compara un mismo versículo en todas las biblias disponibles. |
+| `GET` | `/info/versions` | Devuelve un listado de las versiones y códigos de biblias disponibles (24 versiones). |
+| `GET` | `/info/structure/{version}/{book}` | Devuelve la cantidad de capítulos y versículos de un libro específico. |
+| `GET` | `/info/{version}/books` | Devuelve la cantidad de libros que tiene una determinada versión. |
 | `GET` | `/read/{version}/{book}/{chapter}` | Obtiene un capítulo completo de una versión específica. |
 | `GET` | `/read/{version}/{book}/{chapter}/{verse}` | Obtiene un solo versículo específico. |
-| `GET` | `/search/{version}?q={query}` | Busca palabras o frases dentro de una versión específica. |
-| `GET` | `/compare/{book}/{chapter}/{verse}` | Compara un mismo versículo en todas las biblias disponibles. |
-| `GET` | `/info/versions` | Lista todas las versiones y códigos de biblias disponibles (24 versiones). |
-| `GET` | `/info/structure/{version}/{book}` | Devuelve la cantidad de capítulos y versículos de un libro específico. |
-| `GET` | `/info/books/suggest?q={query}` | Sugerencias de nombres de libros para autocompletado. |
+| `GET` | `/search/books/suggest` | Sugiere nombres de libros basados en una búsqueda parcial. |
+| `GET` | `/search/books/normalize` | Busca el nombre oficial de un libro en la tabla book_names. |
+| `GET` | `/search/{version}` | Busca una palabra o frase exacta en una versión específica. |
 
 ## 🌍 Despliegue en Producción
 
-Este proyecto está configurado para ejecutarse en Render. Gracias a la integración con Git LFS, la base de datos se descarga automáticamente durante el proceso de build.
+Este proyecto está configurado para ejecutarse en Vercel. Gracias a la integración con Git LFS, la base de datos se descarga automáticamente durante el proceso de build.
 
 Desarrollado con ❤️ para facilitar el estudio de las Escrituras.
