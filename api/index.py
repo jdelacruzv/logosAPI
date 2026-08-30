@@ -18,10 +18,6 @@ class LanguageEnum(str, Enum):
     english = "English"
 
 
-# Lista global que se llenará al arrancar
-VALID_VERSIONS = []
-
-
 # Obtener conexión a la base de datos (reutilizada en varios endpoints)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -38,7 +34,6 @@ app = FastAPI(
     title="LogosAPI",
     description="Acceso a 24 versiones de la Biblia en múltiples idiomas",
     version="1.0.0",
-    lifespan=lifespan
 )
 
 
@@ -189,12 +184,13 @@ async def get_book_structure(version: str, book_name: str):
 @app.get("/info/{version}/books", tags=["Version information"])
 async def read_books(version: str):
     v_lower = version.lower()
+    valid_versions = get_allowed_versions()
 
     # Validación dinámica
-    if v_lower not in VALID_VERSIONS:
+    if v_lower not in valid_versions:
         raise HTTPException(
             status_code=404,
-            detail=f"Versión '{version}' no disponible. Opciones: {VALID_VERSIONS}"
+            detail=f"Versión '{version}' no disponible. Opciones: {valid_versions}"
         )
 
     books = get_books_by_version(v_lower)
